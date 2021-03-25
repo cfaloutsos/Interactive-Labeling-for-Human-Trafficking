@@ -15,3 +15,4 @@ streamlit run app.py
 - [ ] Create publicly available toy example
 - [ ] User input for csv, relevant columns
 - [ ] More scalable graph drawing (awkward wait-time)
+- [ ] Proper scaling for the world map view

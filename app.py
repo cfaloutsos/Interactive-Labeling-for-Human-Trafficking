@@ -8,6 +8,7 @@ import nx_altair as nxa
 import time
 
 from collections import defaultdict
+from vega_datasets import data
 
 import SessionState
 
@@ -74,12 +75,41 @@ def draw_graph(graph, pos):
     return nxa.draw_networkx(
         graph, pos=pos,
         node_color='num_ads',
-        cmap='viridis',
+        cmap='tealblues',
         edge_color='grey'
         ).properties(
             width=500,
             height=500)
 
+
+def draw_map(df, geo_col):
+    get_geo = lambda index: [float(geo.split()[index]) for geo in df[geo_col].values]
+    df['lat'] = get_geo(0)
+    df['lon'] = get_geo(1)
+
+
+    countries = alt.topo_feature(data.world_110m.url, 'countries')
+    base = alt.Chart(countries).mark_geoshape(
+        fill='#DDDDDD',
+        stroke='white'
+    ).properties(
+        width=1200,
+        height=600
+    ).project(
+        'equirectangular',
+    )
+
+    scatter = alt.Chart(df).mark_circle(
+        size=100,
+        color='steelblue',
+        fillOpacity=0.2
+    ).encode(
+        longitude='lon:Q',
+        latitude='lat:Q',
+        tooltip=['city', 'country']
+    )
+
+    return base + scatter
 
 
 def pretty_s(s):
@@ -127,6 +157,7 @@ def gen_page_content(state, graph, df, meta_clusters):
         state.pos = pos
         state.is_first = False
 
+    # if we've processed all clusters, we show a static end page
     if state.is_stop:
         st.header("You've finished all examples from this dataset. Thank you!")
         st.balloons()
@@ -151,7 +182,8 @@ def gen_page_content(state, graph, df, meta_clusters):
         if select_feature:
             st.write(draw_time_feature(features, select_feature))
 
-
+    subdf = df[df['LSH label'].isin(cluster)]
+    st.write(draw_map(subdf, 'geolocation'))
 
     # Number input boxes take up the whole column space -- this makes them shorter
     new_cols = st.beta_columns(4)
