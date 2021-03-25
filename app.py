@@ -5,20 +5,22 @@ import streamlit as st
 import types
 import nx_altair as nxa
 
+import time
+
 from collections import defaultdict
 
 import SessionState
 
 
-@st.cache
+@st.cache(show_spinner=False)
 def read_csv(filename):
     return pd.read_csv(filename)
 
-@st.cache
+@st.cache(show_spinner=False)
 def extract_field(df, field, cluster_label='LSH label'):
     return set([el for row in df[field] if type(row) != float for el in str(row).split(';')])
 
-@st.cache
+@st.cache(show_spinner=False)
 def construct_metaclusters(df, cols, cluster_label='LSH label'):
     ''' construct metadata graph from dataframe already split into clusters
     @param df:              pandas dataframe containing ad info
@@ -45,7 +47,7 @@ def construct_metaclusters(df, cols, cluster_label='LSH label'):
     return metadata_graph
 
 
-@st.cache(hash_funcs={types.GeneratorType: id})
+@st.cache(hash_funcs={types.GeneratorType: id}, show_spinner=False)
 def gen_ccs(graph):
     ''' return generator for connected components, sorted by size
         @param graph:   nx Graph 
@@ -56,6 +58,16 @@ def gen_ccs(graph):
         if len(component) < 3:
             continue
         yield component, nx.kamada_kawai_layout(nx.subgraph(graph, component))
+
+
+def draw_time_feature(df, col):
+    return alt.Chart(df).mark_line(point=True).encode(
+        x=alt.X('days', axis=alt.Axis(grid=False)),
+        y=alt.Y(col, axis=alt.Axis(grid=False)),
+    ).properties(
+        width=600,
+        height=300
+    )
 
 
 def draw_graph(graph, pos):
@@ -69,10 +81,12 @@ def draw_graph(graph, pos):
             height=500)
 
 
+
 def pretty_s(s):
     ''' return prettified version of string '''
     return '# {}s'.format(s.replace('_', ' '))
 
+@st.cache(show_spinner=False)
 def feature_extract(graph, df, nodes, cols, cluster_label='LSH label'):
     subdf = df[df[cluster_label].isin(nodes)]
 
@@ -115,6 +129,7 @@ def gen_page_content(state, graph, df, meta_clusters):
 
     if state.is_stop:
         st.header("You've finished all examples from this dataset. Thank you!")
+        st.balloons()
         return
 
     st.header('Suspicious Cluster #{}'.format(state.index+1))
@@ -134,14 +149,9 @@ def gen_page_content(state, graph, df, meta_clusters):
         select_feature = st.selectbox('Choose a feature to look at over time', [f for f in features if f != 'days'])
 
         if select_feature:
-            chart = alt.Chart(features).mark_line(point=True).encode(
-                x=alt.X('days', axis=alt.Axis(grid=False)),
-                y=alt.Y(select_feature, axis=alt.Axis(grid=False)),
-            ).properties(
-                width=600,
-                height=300
-            )
-            st.write(chart)
+            st.write(draw_time_feature(features, select_feature))
+
+
 
     # Number input boxes take up the whole column space -- this makes them shorter
     new_cols = st.beta_columns(4)
@@ -163,7 +173,7 @@ def gen_page_content(state, graph, df, meta_clusters):
 
     
 # Generate content for app
-st.set_page_config(layout='wide')
+st.set_page_config(layout='wide', page_title='Meta-Clustering Classification')
 state_params = {'is_first': True,
     'index': 0,
     'cluster': set(),
@@ -172,10 +182,11 @@ state_params = {'is_first': True,
 }
 state = SessionState.get(**state_params)
 
-columns = ['username', 'img_urls', 'phone_num']
-df = read_csv('../locanto_new_labels-normal_LSH_labels.csv')
+with st.spinner('Processing data...'):
+    columns = ['username', 'img_urls', 'phone_num']
+    df = read_csv('../locanto_new_labels-normal_LSH_labels.csv')
 
-graph = construct_metaclusters(df, columns)
-meta_clusters = gen_ccs(graph)
+    graph = construct_metaclusters(df, columns)
+    meta_clusters = gen_ccs(graph)
 
 gen_page_content(state, graph, df, meta_clusters)
