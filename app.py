@@ -44,25 +44,21 @@ def construct_metaclusters(df, cols, cluster_label='LSH label'):
                     
     return metadata_graph
 
-@st.cache(hash_funcs={types.GeneratorType: id}, show_spinner=False)
+
+@st.cache(hash_funcs={types.GeneratorType: id})
 def gen_ccs(graph):
     ''' return generator for connected components, sorted by size
         @param graph:   nx Graph 
         @return         generator of connected components '''
 
-    components = sorted(nx.connected_components(graph), reverse=True)
+    components = sorted(nx.connected_components(graph), reverse=True, key=len)
     for component in components:
-        if len(component) < 5:
+        if len(component) < 3:
             continue
-        yield component
+        yield component, nx.kamada_kawai_layout(nx.subgraph(graph, component))
 
 
-@st.cache(show_spinner=False)
-def get_pos(graph):
-    return nx.kamada_kawai_layout(graph)
-
-def draw_graph(graph):
-    pos = get_pos(graph)
+def draw_graph(graph, pos):
     return nxa.draw_networkx(
         graph, pos=pos,
         node_color='num_ads',
@@ -107,14 +103,74 @@ def cluster_feature_extract(df, cluster, cluster_label='LSH label', date_col='cr
     return pd.DataFrame(features)
 
 
-@st.cache(hash_funcs={types.GeneratorType: id}, show_spinner=False)
-def get_first_cc(gen):
-    return next(gen)
+def gen_page_content(state, graph, df, meta_clusters):
+    st.title('Meta-Clustering Classification')
+
+    # to show the first cluster before "View next cluster" button press
+    if state.is_first:
+        cluster, pos = next(meta_clusters)
+        state.cluster = cluster
+        state.pos = pos
+        state.is_first = False
+
+    if state.is_stop:
+        st.header("You've finished all examples from this dataset. Thank you!")
+        return
+
+    st.header('Suspicious Cluster #{}'.format(state.index+1))
+    features = cluster_feature_extract(df, state.cluster)
+
+    left_col, right_col = st.beta_columns(2)
+
+    with left_col:
+        st.subheader('Meta-clustering graph')
+        cluster = state.cluster
+        subgraph = nx.subgraph(graph, state.cluster)
+        st.write(draw_graph(subgraph, state.pos))
+
+    with right_col:
+        st.subheader('Basic Cluster Stats')
+        st.write(feature_extract(graph, df, state.cluster, columns) )
+        select_feature = st.selectbox('Choose a feature to look at over time', [f for f in features if f != 'days'])
+
+        if select_feature:
+            chart = alt.Chart(features).mark_line(point=True).encode(
+                x=alt.X('days', axis=alt.Axis(grid=False)),
+                y=alt.Y(select_feature, axis=alt.Axis(grid=False)),
+            ).properties(
+                width=600,
+                height=300
+            )
+            st.write(chart)
+
+    # Number input boxes take up the whole column space -- this makes them shorter
+    new_cols = st.beta_columns(4)
+
+    with new_cols[0]:
+        st.subheader('Labeling: How likely is this to be...')
+        for cluster_type in ('Trafficking', 'Spam', 'Scam', 'Drug dealer', 'Other'):
+            st.number_input(cluster_type, 0.00)
+
+    with new_cols[-1]:
+        if st.button('View next cluster'):
+            try:
+                cluster, pos = next(meta_clusters)
+                state.cluster = cluster
+                state.pos = pos
+                state.index += 1
+            except StopIteration:
+                state.is_stop = True
 
     
 # Generate content for app
 st.set_page_config(layout='wide')
-state = SessionState.get(is_first=True, index=0, cluster=set())
+state_params = {'is_first': True,
+    'index': 0,
+    'cluster': set(),
+    'pos': None,
+    'is_stop': False
+}
+state = SessionState.get(**state_params)
 
 columns = ['username', 'img_urls', 'phone_num']
 df = read_csv('../locanto_new_labels-normal_LSH_labels.csv')
@@ -122,50 +178,4 @@ df = read_csv('../locanto_new_labels-normal_LSH_labels.csv')
 graph = construct_metaclusters(df, columns)
 meta_clusters = gen_ccs(graph)
 
-# to show the first cluster before "View next cluster" button press
-if state.is_first:
-    state.cluster = next(meta_clusters)
-    state.is_first = False
-
-features = cluster_feature_extract(df, state.cluster)
-
-st.title('Meta-Clustering Classification')
-
-st.header('Suspicious Cluster #{}'.format(state.index+1))
-
-
-left_col, right_col = st.beta_columns(2)
-
-with left_col:
-    st.subheader('Meta-clustering graph')
-    cluster = state.cluster
-    subgraph = nx.subgraph(graph, state.cluster)
-    st.write(draw_graph(subgraph))
-
-with right_col:
-    st.subheader('Basic Cluster Stats')
-    st.write(feature_extract(graph, df, state.cluster, columns) )
-    select_feature = st.selectbox('Choose a feature to look at over time', [f for f in features if f != 'days'])
-
-    if select_feature:
-        chart = alt.Chart(features).mark_line(point=True).encode(
-            x=alt.X('days', axis=alt.Axis(grid=False)),
-            y=alt.Y(select_feature, axis=alt.Axis(grid=False)),
-        ).properties(
-            width=600,
-            height=300
-        )
-        right_col.write(chart)
-
-# Number input boxes take up the whole column space -- this makes them shorter
-new_cols = st.beta_columns(4)
-
-with new_cols[0]:
-    st.subheader('Labeling: How likely is this to be...')
-    for cluster_type in ('Trafficking', 'Spam', 'Scam', 'Drug dealer', 'Other'):
-        st.number_input(cluster_type, 0.00)
-
-with new_cols[-1]:
-    if st.button('View next cluster'):
-        state.index += 1
-        state.cluster = next(meta_clusters)
+gen_page_content(state, graph, df, meta_clusters)
