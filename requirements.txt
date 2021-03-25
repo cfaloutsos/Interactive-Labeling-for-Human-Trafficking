@@ -1,0 +1,5 @@
+pandas==1.1.5
+networkx==2.5
+nx_altair==0.1.6
+altair==4.1.0
+streamlit==0.77.0
