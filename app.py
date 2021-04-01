@@ -82,21 +82,37 @@ def draw_graph(graph, pos):
             height=500)
 
 
+@st.cache
+def get_center_scale(lat, lon):
+    midpoint = lambda lst: (max(lst) + min(lst)) / 2
+
+    scale = lambda lst, const: const*2 / (max(lst) - min(lst)) if max(lst) - min(lst) else 100
+
+    center = midpoint(lon), midpoint(lat)
+
+    #st.write('lat', max(lat), min(lat))
+    #st.write('lon', max(lon), min(lon))
+
+    scale_lat = scale(lat, 90)
+    scale_lon = scale(lon, 180)
+
+    return center, min(scale_lat, scale_lon) * 100
+
+
 def draw_map(df, geo_col):
     get_geo = lambda index: [float(geo.split()[index]) for geo in df[geo_col].values]
     df['lat'] = get_geo(0)
     df['lon'] = get_geo(1)
 
+    center, scale = get_center_scale(df.lat, df.lon)
 
     countries = alt.topo_feature(data.world_110m.url, 'countries')
     base = alt.Chart(countries).mark_geoshape(
-        fill='#DDDDDD',
-        stroke='white'
+        fill='white',
+        stroke='#DDDDDD'
     ).properties(
         width=1200,
         height=600
-    ).project(
-        'equirectangular',
     )
 
     scatter = alt.Chart(df).mark_circle(
@@ -109,7 +125,11 @@ def draw_map(df, geo_col):
         tooltip=['city', 'country']
     )
 
-    return base + scatter
+    return (base + scatter).project(
+        'equirectangular',
+        scale=scale,
+        center=center
+    )
 
 
 def pretty_s(s):
