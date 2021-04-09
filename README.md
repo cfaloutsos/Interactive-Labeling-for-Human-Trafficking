@@ -13,10 +13,9 @@ streamlit run app.py
 - [ ] Save state between runs -- only show to annotator if not previously clustered
 - [ ] User input for csv, relevant columns
 - [ ] Create publicly available toy example
+- [ ] Scalability (if we have > 3000 coarse clusters in a metacluster)
 
 ### Extra Features
-- [ ] On click of a node in metadata graph, display InfoShield template
-- [ ] Prettify ooltips for meta-clustering graph
-- [ ] More scalable graph drawing (awkward wait-time)
 - [ ] Create ad similarity metric
-- [ ] Drill down into particular ads
+- [ ] Drill down into particular ads / templates
+- [ ] Bubble chart -- on-click on a facet, populate its template
