@@ -30,13 +30,17 @@ BY_METADATA_PARAMS = ({
     'tooltip': ['days',  'count', 'metadata', 'type'],
 })
 
-
-
 BUTTON_STYLE = '<style>div.row-widget.stRadio > div{flex-direction:row;}</style>'
+
 
 ### Generic utils
 @st.cache#(show_spinner=False)
 def read_csv(filename, keep_cols=[], rename_cols={}):
+    ''' read csv into Pandas DataFrame
+        :param filename:    location of csv file
+        :param keep_cols:   if specified, only keep those csv columns
+        :param rename_cols: if specified, dictionary of rename mappings for csv columns
+        :return:            Pandas DataFrame '''
     df = pd.read_csv(filename)
     if keep_cols:
         df = df[keep_cols]
@@ -49,6 +53,11 @@ def read_csv(filename, keep_cols=[], rename_cols={}):
 
 @st.cache
 def get_subdf(df, state, date_col='date_posted'):
+    ''' get subset of DataFrame based on state.cluster, do location & date processing
+        :param df:          DataFrame to take subset of
+        :param state:       SessionState object, state.cluster shows subset to take
+        :param date_col:    name of DataFrame column containing date 
+        :return:            subset of DataFrame with nicely formatted locatino & date'''
     subdf = df[df['LSH label'].isin(state.cluster)].copy()
     subdf = gen_locations(subdf)
 
@@ -61,33 +70,56 @@ def get_subdf(df, state, date_col='date_posted'):
 
 
 @st.cache#(show_spinner=False)
-def extract_field(field, cluster_label='LSH label'):
-    field = field.dropna()
-    if not len(field):
-        return field
+def extract_field(series):
+    ''' extract values from Pandas Series, where some entries represent multiple values
+        :param series:  Pandas Series to get values from
+        :return:        Numpy 1D array of all values (with repetitions)
+        '''
+    series = series.dropna()
+    if not len(series):
+        return series
 
-    return np.concatenate(field.apply(lambda val: str(val).split(';')).values)
+    return np.concatenate(series.apply(lambda val: str(val).split(';')).values)
 
 
 @st.cache
 def pretty_s(s):
-    ''' return prettified version of string '''
+    ''' prettify a string for display
+        :parram s:  string to prettify
+        :return     string with spaces and plural '''
     return '# {}s'.format(s.replace('_', ' '))
 
 
-@st.cache#(show_spinner=False)
-def basic_stats(graph, df, nodes, cols, cluster_label='LSH label'):
-    subdf = df[df[cluster_label].isin(nodes)]
+@st.cache
+def filename_stub(filename):
+    ''' strip path and extension from filename
+        :param filename:    string of filename
+        :return:            stub of filename '''
+    return os.path.basename(filename).split('.')[0]
 
-    metadata = {pretty_s(col): len(extract_field(subdf[col])) for col in cols}
-    metadata['# ads'] = len(subdf)
-    metadata['# clusters'] = len(subdf[cluster_label].unique())
+
+@st.cache#(show_spinner=False)
+def basic_stats(df, cols, cluster_label='LSH label'):
+    ''' get basic meta-cluster level stats, not based on time
+        :param df:      Pandas DataFrame representing ads from one meta-cluster
+        :param cols:    columns of DataFrame containing relevant metadata
+        :return:        DataFrame with metadata counts '''
+
+    metadata = {pretty_s(col): len(extract_field(df[col])) for col in cols}
+    metadata['# ads'] = len(df)
+    metadata['# clusters'] = len(df[cluster_label].unique())
 
     return pd.DataFrame(metadata, index=['Count']).T
 
 
 @st.cache
 def top_n(df, groupby, sortby, n=15):
+    ''' get the top n groups from a DataFrame
+        :param df:      Pandas DataFrame for one meta-cluster
+        :param groupby: column from DataFrame to create groups before aggregation
+        :param sortby:  column from DataFrame to aggregate & sort by
+        :param n:       number of groups to return
+        :return         DataFrame containing data from top n groups'''
     top_n = df.groupby(
         groupby
     ).sum(
@@ -103,6 +135,10 @@ def top_n(df, groupby, sortby, n=15):
 ### Location data related functions
 @st.cache
 def get_center_scale(lat, lon):
+    ''' get centering and scale parameters for map display
+        :param lat: list of latitudes
+        :param lon: list of longitudes
+        :return:    center (midpoint) and scaling '''
     midpoint = lambda lst: (max(lst) + min(lst)) / 2
 
     scale = lambda lst, const: const*2 / (max(lst) - min(lst)) if max(lst) - min(lst) else 100
@@ -116,8 +152,10 @@ def get_center_scale(lat, lon):
 
 
 @st.cache
-def gen_locations(df, count_only=True):
-    # generate x&y coords for locations bar 
+def gen_locations(df):
+    ''' generate latitude and longitude coordinates given city_id
+        :param df:  Pandas DataFrame with column "city_id" to get coordinates from
+        :return:    DataFrame with latitude and longitude data '''
     cities_df = read_csv('~/grad_projects/data/aht_data/metadata/cities.csv',
         keep_cols=['id', 'xcoord', 'ycoord'],
         rename_cols={'xcoord': 'lat', 'ycoord': 'lon'})
@@ -127,10 +165,13 @@ def gen_locations(df, count_only=True):
 
 @st.cache
 def prettify_location(city, country):
+    ''' make pretty location string based on city, country
+        :param city:    city_id as specified by Marinus
+        :param country: country_id as specified by Marinus
+        :return:        string of format {state}, {country} '''
     cities_df = read_csv('~/grad_projects/data/aht_data/metadata/cities.csv')
     countries_df = read_csv('~/grad_projects/data/aht_data/metadata/countries.csv')
 
-    # make pretty location string based on city, country       
     country_str = countries_df[countries_df.id == country].code.values[0]
     city_str = cities_df[cities_df.id == city].name.values[0]
     return ', '.join([city_str, country_str])
@@ -138,23 +179,31 @@ def prettify_location(city, country):
 
 @st.cache
 def aggregate_locations(df):
-    agg_df = df.groupby(
+    ''' get location counts from DataFrame
+        :param df:  Pandas DataFrame with column "location"
+        :return     DataFrame with location count data '''
+
+    return df.groupby(
         ['location'],
         as_index=False
     ).agg({
          'ad_id': 'count',
          'lat': 'mean',
          'lon': 'mean'
-    })
-
-    agg_df = agg_df.rename(columns = {'ad_id': 'count'})
-
-    return agg_df
+    }).rename(
+        columns={'ad_id': 'count'}
+    )
 
 
 ### Date related
 @st.cache
 def extract_field_dates(df, col_name, date_col):
+    ''' extract values from Pandas DataFrame with date, where one row represents multiple values
+        :param df:          Pandas DataFrame to get data from 
+        :param col_name:    column from DataFrame with values to extract
+        :param date_col:    column from DataFrame with time data
+        :return:            DataFrame with each value's count, by day '''
+
     df = df.dropna()
     if not len(df):
         return pd.DataFrame(columns=['metadata', 'date_posted', 'count', 'type'])
@@ -176,7 +225,11 @@ def extract_field_dates(df, col_name, date_col):
 
 @st.cache#(show_spinner=False)
 def cluster_feature_extract(df, cluster_label='LSH label', date_col='date_posted', loc_col='city_id'):
-    ''' extract important time-based features for a particular cluster '''
+    ''' extract important time-based features for a particular cluster
+        :param df:          Pandas DataFrame representing one meta-cluster
+        :param date_col:    column from DataFrame representing time data
+        :param loc_col:     column from DataFrame representing location (city id)
+        :return tuple of DataFrames (1) by cluster, (2) for entire meta-cluster, (3) for metadata'''
     def total(series):
         return len(extract_field(series))
 
@@ -218,10 +271,10 @@ def cluster_feature_extract(df, cluster_label='LSH label', date_col='date_posted
 @st.cache#(show_spinner=False)
 def construct_metaclusters(filename, df, cols, cluster_label='LSH label'):
     ''' construct metadata graph from dataframe already split into clusters
-    @param df:              pandas dataframe containing ad info
-    @param cols:            subset of @df.columns to link clusters by
-    @param cluster_label:   column from @df.columns containing cluster label 
-    @return                 nx graph, where each connected component is a meta-cluster '''
+    :param df:              pandas dataframe containing ad info
+    :param cols:            subset of @df.columns to link clusters by
+    :param cluster_label:   column from @df.columns containing cluster label 
+    :return                 nx graph, where each connected component is a meta-cluster '''
 
     pkl_filename = 'pkl_files/{}.pkl'.format(filename)
     if os.path.exists(pkl_filename):
@@ -251,24 +304,21 @@ def construct_metaclusters(filename, df, cols, cluster_label='LSH label'):
 @st.cache(hash_funcs={types.GeneratorType: id}, show_spinner=False)
 def gen_ccs(graph):
     ''' return generator for connected components, sorted by size
-        @param graph:   nx Graph 
-        @return         generator of connected components '''
+        :param graph:   nx Graph 
+        :return         generator of connected components '''
 
     components = sorted(nx.connected_components(graph), reverse=True, key=len)
     for component in components:
         print('# clusters', len(component))
-        #if len(component) < 3:
-        #    continue
-        if len(component) > 50:
-            pos = None
-        else:
-            pos = nx.kamada_kawai_layout(nx.subgraph(graph, component))
-        yield component, pos
+        yield component
 
 
 ### Text annotation utils
 @st.cache
 def get_all_template_text(directory):
+    ''' check a directory for all possible templates and annotate them
+        :param directory:   directory to check for subdirs containing templates
+        :return:            string to write with annotate_text function '''
     if directory.endswith('.pkl'):
         pickled = pkl.load(open(directory, 'rb'))
         return get_template_text(*pickled, 0)
@@ -288,6 +338,11 @@ def get_all_template_text(directory):
 
 @st.cache
 def get_template_text(template, ads, i):
+    ''' annotate a particular template with relevant ads as calculated from InfoShield
+        :param template:    list of tokens in template
+        :param ads:         list of tuples of form (type_index, token)
+        :param i:           template number
+        :return:            string to write with annotated_text for this particular template '''
     index_to_type = {
         -1: ('slot', '#faa'),
         0:  ('const', '#fea'),
