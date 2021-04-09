@@ -19,3 +19,6 @@ streamlit run app.py
 - [ ] Create ad similarity metric
 - [ ] Drill down into particular ads / templates
 - [ ] Bubble chart -- on-click on a facet, populate its template
+- [ ] Replace bubble chart with horizontal heatmap
+- [ ] Table -- left align text column, but keep count column right aligned
+- [ ] Do 1-5 scales instead of textbox, for each label
