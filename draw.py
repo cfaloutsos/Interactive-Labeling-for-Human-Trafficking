@@ -15,6 +15,7 @@ def time_series(df, col):
     return alt.Chart(df).mark_bar().encode(
         x=alt.X('days', axis=alt.Axis(grid=False)),
         y=alt.Y(col, axis=alt.Axis(grid=False)),
+        color=alt.value('#9467bd')
     ).properties(
         width=650,
         height=300
@@ -73,7 +74,7 @@ def map(df):
     agg_df = utils.aggregate_locations(df)
 
     scatter = alt.Chart(agg_df).mark_circle(
-        color='#7D3C98',
+        color='#ff7f0e',
         fillOpacity=.5,
     ).encode(
         size=alt.Size('count:Q', scale=alt.Scale(range=[100, 500])),
@@ -99,7 +100,7 @@ def bubble_chart(df, y, facet, tooltip):
     return alt.Chart(df).mark_circle().encode(
         x=alt.X('days', axis=alt.Axis(grid=True)),
         y=alt.Y(y, axis=alt.Axis(grid=False, labels=False), title=None),
-        color=alt.Color(facet, legend=None),
+        color=alt.value('#17becf'),
         row=alt.Row(facet, title=None, header=alt.Header(labelAngle=-45)),
         tooltip=tooltip,
         size=alt.Size(y, scale=alt.Scale(range=[100, 500]))
