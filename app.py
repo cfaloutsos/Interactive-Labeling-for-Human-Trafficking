@@ -40,17 +40,17 @@ def gen_page_content(state, df):
 
     left_col, right_col = st.beta_columns((1.25, 3))
 
-    # bubble chart
+    # strip plot with heatmap
     with left_col:
         st.write(utils.BUTTON_STYLE, unsafe_allow_html=True) # allows side-by-side button opts
         radio_val = st.radio('Which view would you like to see?', ['By cluster', 'By metadata'])
 
-        top_n_params, bubble_params = utils.BY_CLUSTER_PARAMS if radio_val == 'By cluster' \
+        top_n_params, chart_params = utils.BY_CLUSTER_PARAMS if radio_val == 'By cluster' \
             else utils.BY_METADATA_PARAMS
-        bubble_df = cluster_features if radio_val == 'By cluster' else metadata_features
+        plot_df = cluster_features if radio_val == 'By cluster' else metadata_features
 
-        top_df = utils.top_n(bubble_df, **top_n_params)
-        st.write(draw.strip_plot(top_df, **bubble_params))
+        top_df = utils.top_n(plot_df, **top_n_params)
+        st.write(draw.strip_plot(top_df, **chart_params))
 
     # template / ad text visualization
     with right_col:

@@ -109,11 +109,11 @@ def basic_stats(df, cols, cluster_label='LSH label'):
         :param cols:    columns of DataFrame containing relevant metadata
         :return:        DataFrame with metadata counts '''
 
-    metadata = {pretty_s(col): len(extract_field(df[col])) for col in cols}
+    metadata = {pretty_s(col): [len(extract_field(df[col])), len(set(extract_field(df[col])))] for col in cols}
     metadata['# ads'] = len(df)
     metadata['# clusters'] = len(df[cluster_label].unique())
 
-    return pd.DataFrame(metadata, index=['Count']).T
+    return pd.DataFrame(metadata, index=['Raw Count', 'Unique Count']).T
 
 
 @st.cache
