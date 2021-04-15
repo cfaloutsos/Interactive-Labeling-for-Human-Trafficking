@@ -5,31 +5,27 @@ import draw, utils
 import SessionState
 
 
-def gen_page_content(state, df, meta_clusters):
+def gen_page_content(state, df):
     ''' create Streamlit page 
         :param state:           SessionState object storing cluster data
-        :param df:              pandas DataFrame containing ad data
-        :param meta_clusters:   generator of meta-clusters
-    '''
+        :param df:              pandas DataFrame containing ad data '''
     first_col, _, _, _, last_col = st.beta_columns(5)
     with last_col:
         if st.button('View next cluster'):
             try:
-                cluster = next(meta_clusters)
-                state.cluster = cluster
+                state.cluster = next(state.gen_clusters)
                 state.index += 1
             except StopIteration:
                 state.is_stop = True
 
     with first_col:
-        st.title('Suspicious Cluster #{}'.format(state.index+1))
+        st.title('Suspicious Meta-Cluster #{}'.format(state.index+1))
 
     # on first iteration, before button press
     if state.is_first:
-        cluster = next(meta_clusters) # TODO: change once scalable
-        cluster = next(meta_clusters)
+        next(state.gen_clusters) # TODO: change once scalable
+        state.cluster = next(state.gen_clusters)
         state.index += 1
-        state.cluster = cluster
         state.is_first = False
 
     # if we've processed all clusters, we show a static end page
@@ -54,12 +50,13 @@ def gen_page_content(state, df, meta_clusters):
         bubble_df = cluster_features if radio_val == 'By cluster' else metadata_features
 
         top_df = utils.top_n(bubble_df, **top_n_params)
-        st.write(draw.bubble_chart(top_df, **bubble_params))
+        st.write(draw.strip_plot(top_df, **bubble_params))
 
     # template / ad text visualization
     with right_col:
         label = subdf['LSH label'].value_counts().idxmax()
         start_path = '../InfoShield/results/{}'.format(label)
+        start_path = './data/example.pkl'
         if not os.path.exists(start_path):
             start_path = './data/example.pkl'
         draw.templates(start_path)
@@ -97,7 +94,8 @@ state_params = {
     'is_first': True,
     'index': 0,
     'cluster': set(),
-    'is_stop': False
+    'is_stop': False,
+    'gen_clusters': None
 }
 state = SessionState.get(**state_params)
 
@@ -106,7 +104,8 @@ with st.spinner('Processing data...'):
     columns = ['phone', 'email', 'social', 'image_id']
     df = utils.read_csv(filename)
 
-    graph = utils.construct_metaclusters(utils.filename_stub(filename), df, columns)
-    meta_clusters = utils.gen_ccs(graph)
+    if state.is_first:
+        graph = utils.construct_metaclusters(utils.filename_stub(filename), df, columns)
+        state.gen_clusters = utils.gen_ccs(graph)
 
-gen_page_content(state, df, meta_clusters)
+gen_page_content(state, df)

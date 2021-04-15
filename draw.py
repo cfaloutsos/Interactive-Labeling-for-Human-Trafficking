@@ -1,8 +1,14 @@
 import altair as alt
 import nx_altair as nxa
+import pandas as pd
+import numpy as np
 
-from itertools import chain
+from datetime import timedelta
+
+from itertools import chain, product
 from vega_datasets import data
+
+import streamlit as st
 
 import utils
 
@@ -109,6 +115,42 @@ def bubble_chart(df, y, facet, tooltip):
         height=400 / len(df)
     ).configure_facet(
         spacing=5
+    ).configure_view(
+        stroke=None
+    )
+
+
+def strip_plot(df, y, facet, tooltip):
+    ''' create strip plot with heatmap
+        :param df:      Pandas DataFrame to display
+        :param y:       column of DataFrame to use for bubble size
+        :param facet:   column of DataFrame to create facet with
+        :param tooltip: list of DataFrame columns to include in tooltip
+        :return:        altair strip plot '''
+
+    delta = timedelta(days=1)
+    date_range = np.arange(min(df.days) - delta, max(df.days) + 2*delta, delta)
+    facet_s = facet.split(':')[0]
+
+    label = df[facet_s].values[0]
+    mini_df = pd.DataFrame([{'days': d, y: 0, facet_s: label} for d in date_range if d not in df.days.unique()])
+
+    big_df = pd.concat([df, mini_df])
+
+    return alt.Chart(big_df).mark_tick(binSpacing=0, thickness=6).transform_impute(
+        impute=y,
+        key='days',
+        value=0,
+        keyvals = date_range,
+        groupby=[facet_s]
+    ).encode(
+        x=alt.X('days:T', axis=alt.Axis(grid=False), scale=alt.Scale(domain=[min(date_range), max(date_range)])),
+        y=alt.Y(facet, axis=alt.Axis(grid=False, labels=True), title=None),
+        color=alt.Color(y, scale=alt.Scale(scheme='purplered')),
+        tooltip=tooltip,
+    ).properties(
+        width=650,
+        height=400
     ).configure_view(
         stroke=None
     )

@@ -51,7 +51,7 @@ def read_csv(filename, keep_cols=[], rename_cols={}):
     return df
 
 
-@st.cache
+@st.cache(hash_funcs={types.GeneratorType: id}, show_spinner=False)
 def get_subdf(df, state, date_col='date_posted'):
     ''' get subset of DataFrame based on state.cluster, do location & date processing
         :param df:          DataFrame to take subset of
@@ -59,12 +59,16 @@ def get_subdf(df, state, date_col='date_posted'):
         :param date_col:    name of DataFrame column containing date 
         :return:            subset of DataFrame with nicely formatted locatino & date'''
     subdf = df[df['LSH label'].isin(state.cluster)].copy()
+
+    if 'location' in subdf.columns: # means pre-processed script already ran
+        return subdf
+
     subdf = gen_locations(subdf)
 
     subdf['location'] = [prettify_location(*tup) for tup in subdf[['city_id', 'country_id']].values]
 
     subdf[date_col] = pd.to_datetime(subdf[date_col], infer_datetime_format=True)
-    subdf[date_col] = subdf[date_col].dt.date
+    subdf[date_col] = subdf[date_col].dt.normalize()
 
     return subdf
 
