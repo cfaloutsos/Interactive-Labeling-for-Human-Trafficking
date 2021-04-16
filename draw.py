@@ -156,13 +156,21 @@ def strip_plot(df, y, facet, tooltip):
     ).encode(
         x=alt.X('days:T', axis=alt.Axis(grid=False), scale=alt.Scale(domain=[min(date_range), max(date_range)])),
         y=alt.Y(facet, axis=alt.Axis(grid=False, labels=True), title=None),
-        color=alt.Color(y, scale=alt.Scale(scheme='purplered')),
+        color=alt.Color(y, scale=alt.Scale(scheme='purplered', type='sqrt')),
         tooltip=tooltip,
     ).properties(
         width=650,
         height=400
     ).configure_view(
         stroke=None
+    ).configure_axis(
+        labelFontSize=14,
+        titleFontSize=14
+    ).configure_legend(
+        gradientLength=325,
+        labelFontSize=14
+    ).configure_axisX(
+        labelAngle=-15
     )
 
 
