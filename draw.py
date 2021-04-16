@@ -12,6 +12,16 @@ import streamlit as st
 
 import utils
 
+PERSON = (
+    "M1.7 -1.7h-0.8c0.3 -0.2 0.6 -0.5 0.6 -0.9c0 -0.6 "
+    "-0.4 -1 -1 -1c-0.6 0 -1 0.4 -1 1c0 0.4 0.2 0.7 0.6 "
+    "0.9h-0.8c-0.4 0 -0.7 0.3 -0.7 0.6v1.9c0 0.3 0.3 0.6 "
+    "0.6 0.6h0.2c0 0 0 0.1 0 0.1v1.9c0 0.3 0.2 0.6 0.3 "
+    "0.6h1.3c0.2 0 0.3 -0.3 0.3 -0.6v-1.8c0 0 0 -0.1 0 "
+    "-0.1h0.2c0.3 0 0.6 -0.3 0.6 -0.6v-2c0.2 -0.3 -0.1 "
+    "-0.6 -0.4 -0.6z"
+)
+
 
 def time_series(df, col):
     ''' make bar plot of time series data
@@ -153,4 +163,32 @@ def strip_plot(df, y, facet, tooltip):
         height=400
     ).configure_view(
         stroke=None
+    )
+
+
+def labeling_buttons(title):
+    colors = ('#33cc33', '#ace600', '#e6e600', '#ff9900', '#ff3300')
+    data = pd.DataFrame([{'id': i, 'color': c} for i, c in enumerate(colors)])
+    brush = alt.selection_single(nearest=True, empty='none', fields=['id'])
+
+    return alt.Chart(data).mark_point(
+        filled=True,
+        size=100
+    ).encode(
+        x=alt.X("id:O", axis=None),
+        shape=alt.ShapeValue(PERSON),
+        color=alt.condition(
+            alt.datum.id <= brush.id,
+            alt.Color('color:N', scale=None),
+            alt.value('skyblue'))
+    ).properties(
+        width=400,
+        height=100,
+        title=title
+    ).configure_view(
+        strokeWidth=0
+    ).add_selection(
+        brush
+    ).configure_title(
+        fontSize=16
     )

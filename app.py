@@ -80,12 +80,11 @@ def gen_page_content(state, df):
         st.write(draw.map(subdf))
 
     # Number input boxes take up the whole column space -- this makes them shorter
-    st.subheader('Labeling: How likely is this to be...')
+    st.subheader('Labeling: On a scale of 1 (very unlikely) to 5 (very likely), how likely is this to be...')
     label_cols = st.beta_columns(5)
 
     for col, cluster_type in zip(label_cols, ('Trafficking', 'Spam', 'Scam', 'Drug dealer', 'Other')):
-        with col:
-            st.number_input(cluster_type, 0.00)
+        col.write(draw.labeling_buttons(cluster_type))
 
     
 # Generate content for app
